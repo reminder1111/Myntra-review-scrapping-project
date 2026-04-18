@@ -1,0 +1,20 @@
+from src.cloud_io import MongoIO
+from src.constants import MONGO_DATABASE_NAME
+from src.exception import CustomException
+import os, sys
+
+
+
+def fetch_product_names_from_cloud():
+    try:
+        mongo = MongoIO()
+        if mongo.mongo_db is None:
+            return []
+
+        collection_names = mongo.mongo_db.list_collection_names()
+        return [collection_name.replace('_', ' ')
+                for collection_name in collection_names]
+
+
+    except Exception as e:
+        raise CustomException(e, sys)

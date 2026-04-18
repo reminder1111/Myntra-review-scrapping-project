@@ -25,20 +25,24 @@ def form_input():
                                      min_value=1)
 
     if st.button("Scrape Reviews"):
-        scrapper = ScrapeReviews(
-            product_name=product,
-            no_of_products=int(no_of_products)
-        )
+        try:
+            scrapper = ScrapeReviews(
+                product_name=product,
+                no_of_products=int(no_of_products)
+            )
 
-        scrapped_data = scrapper.get_review_data()
-        if scrapped_data is not None:
-            st.session_state["data"] = True
-            mongoio = MongoIO()
-            mongoio.store_reviews(product_name=product,
-                                  reviews=scrapped_data)
-            print("Stored Data into mongodb")
+            scrapped_data = scrapper.get_review_data()
+            if scrapped_data is not None:
+                st.session_state["data"] = True
+                mongoio = MongoIO()
+                mongoio.store_reviews(product_name=product,
+                                      reviews=scrapped_data)
+                print("Stored Data into mongodb")
 
-        st.dataframe(scrapped_data)
+            st.dataframe(scrapped_data)
+        except Exception as e:
+            st.session_state["data"] = False
+            st.error(str(e))
 
 
 if __name__ == "__main__":

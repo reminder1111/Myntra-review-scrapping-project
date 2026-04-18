@@ -125,10 +125,8 @@ The app depends on Selenium and a Chrome-compatible browser. Render's docs note 
 
 ### Live deployment link
 
-Add your final Render service URL here after the first successful deploy:
-
 ```text
-https://your-service-name.onrender.com
+https://myntra-review-scraping-project.onrender.com
 ```
 
 ## MongoDB configuration

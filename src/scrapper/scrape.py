@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import sys
 import time
@@ -11,6 +12,12 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
 from src.exception import CustomException
+
+DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/123.0.0.0 Safari/537.36"
+)
 
 
 class ScrapeReviews:
@@ -30,7 +37,11 @@ class ScrapeReviews:
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
+        options.add_argument("--disable-http2")
         options.add_argument("--window-size=1920,1080")
+        options.add_argument(
+            f"--user-agent={os.getenv('SCRAPER_USER_AGENT', DEFAULT_USER_AGENT)}"
+        )
 
         chrome_binary = (
             os.getenv("GOOGLE_CHROME_BIN")
@@ -76,6 +87,17 @@ class ScrapeReviews:
                     t = href[product_no]["href"]
                     product_urls.append(t)
 
+            if not product_urls:
+                regex_matches = re.findall(
+                    r"https://www\.myntra\.com/[^\"']+/buy",
+                    myntra_text,
+                )
+                for match in regex_matches:
+                    product_urls.append(match.replace("https://www.myntra.com/", ""))
+
+            # Preserve order while removing duplicates.
+            product_urls = list(dict.fromkeys(product_urls))
+
             return product_urls
 
         except Exception as e:
@@ -83,29 +105,47 @@ class ScrapeReviews:
 
     def extract_reviews(self, product_link):
         try:
-            productLink = "https://www.myntra.com/" + product_link
+            if product_link.startswith("http"):
+                productLink = product_link
+            else:
+                productLink = "https://www.myntra.com/" + product_link
+
             self.driver.get(productLink)
             prodRes = self.driver.page_source
             prodRes_html = bs(prodRes, "html.parser")
             title_h = prodRes_html.findAll("title")
 
-            self.product_title = title_h[0].text
+            self.product_title = title_h[0].text if title_h else product_link
+            self.product_rating_value = "No overall rating available"
+            self.product_price = "No price available"
 
             overallRating = prodRes_html.findAll(
                 "div", {"class": "index-overallRating"}
             )
             for i in overallRating:
                 self.product_rating_value = i.find("div").text
+
+            if self.product_rating_value == "No overall rating available":
+                rating_value = prodRes_html.find("div", {"class": "index-overallRating"})
+                if rating_value is not None:
+                    self.product_rating_value = rating_value.get_text(strip=True)
+
             price = prodRes_html.findAll("span", {"class": "pdp-price"})
             for i in price:
                 self.product_price = i.text
+
+            if prodRes_html.find(
+                "div", {"class": "detailed-reviews-userReviewsContainer"}
+            ):
+                return productLink
+
             product_reviews = prodRes_html.find(
                 "a", {"class": "detailed-reviews-allReviews"}
             )
 
             if not product_reviews:
                 return None
-            return product_reviews
+            return "https://www.myntra.com" + product_reviews["href"]
         except Exception as e:
             raise CustomException(e, sys)
         
@@ -136,9 +176,14 @@ class ScrapeReviews:
 
     def extract_products(self, product_reviews: list):
         try:
-            t2 = product_reviews["href"]
-            Review_link = "https://www.myntra.com" + t2
-            self.driver.get(Review_link)
+            if isinstance(product_reviews, str):
+                review_link = product_reviews
+            else:
+                t2 = product_reviews["href"]
+                review_link = "https://www.myntra.com" + t2
+
+            if self.driver.current_url != review_link:
+                self.driver.get(review_link)
             
             self.scroll_to_load_reviews()
             
@@ -149,6 +194,9 @@ class ScrapeReviews:
                 "div", {"class": "detailed-reviews-userReviewsContainer"}
             )
 
+            user_rating = []
+            user_comment = []
+            user_name = []
             for i in review:
                 user_rating = i.findAll(
                     "div", {"class": "user-review-main user-review-showRating"}
@@ -224,6 +272,12 @@ class ScrapeReviews:
 
             product_urls = self.scrape_product_urls(product_name=self.product_name)
 
+            if not product_urls:
+                raise ValueError(
+                    f"No products were found for '{self.product_name}'. "
+                    "Myntra may be blocking automated requests right now."
+                )
+
             
 
             product_details = []
@@ -231,17 +285,24 @@ class ScrapeReviews:
             review_len = 0
 
 
-            while review_len < self.no_of_products:
+            while review_len < self.no_of_products and review_len < len(product_urls):
                 product_url = product_urls[review_len]
                 review = self.extract_reviews(product_url)
 
                 if review:
                     product_detail = self.extract_products(review)
-                    product_details.append(product_detail)
+                    if product_detail is not None and not product_detail.empty:
+                        product_details.append(product_detail)
 
                     review_len += 1
                 else:
                     product_urls.pop(review_len)
+
+            if not product_details:
+                raise ValueError(
+                    f"Reviews were not available for '{self.product_name}'. "
+                    "Try another keyword or try again later."
+                )
 
             self.driver.quit()
 

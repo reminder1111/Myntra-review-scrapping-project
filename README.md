@@ -143,4 +143,5 @@ Review data is noisy when read one product page at a time. This project helps tu
 
 ## Author
 
-Built for Myntra product review exploration and dashboard-based analysis.
+- Neha Nishad
+- Email: nehanishad200311@gmail.com

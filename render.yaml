@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: myntra-review-scraping-project
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    autoDeployTrigger: off
+    healthCheckPath: /

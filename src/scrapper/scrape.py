@@ -6,6 +6,7 @@ import time
 from urllib.parse import quote
 
 import pandas as pd
+import requests
 from bs4 import BeautifulSoup as bs
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -64,6 +65,29 @@ class ScrapeReviews:
 
         self.product_name = product_name
         self.no_of_products = no_of_products
+        self.http_headers = {
+            "User-Agent": os.getenv("SCRAPER_USER_AGENT", DEFAULT_USER_AGENT),
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+
+    def _extract_product_urls_from_html(self, html: str):
+        product_urls = []
+
+        soup = bs(html, "html.parser")
+        pclass = soup.findAll("ul", {"class": "results-base"})
+        for item in pclass:
+            href = item.find_all("a", href=True)
+            for anchor in href:
+                product_urls.append(anchor["href"])
+
+        regex_matches = re.findall(
+            r"https://www\.myntra\.com/[^\"']+/buy",
+            html,
+        )
+        for match in regex_matches:
+            product_urls.append(match.replace("https://www.myntra.com/", ""))
+
+        return list(dict.fromkeys(product_urls))
 
     def scrape_product_urls(self, product_name):
         try:
@@ -71,32 +95,24 @@ class ScrapeReviews:
             # no_of_products = int(self.request.form['prod_no'])
 
             encoded_query = quote(search_string)
-            # Navigate to the URL
-            self.driver.get(
-                f"https://www.myntra.com/{search_string}?rawQuery={encoded_query}"
-            )
-            myntra_text = self.driver.page_source
-            myntra_html = bs(myntra_text, "html.parser")
-            pclass = myntra_html.findAll("ul", {"class": "results-base"})
+            search_url = f"https://www.myntra.com/{search_string}?rawQuery={encoded_query}"
 
             product_urls = []
-            for i in pclass:
-                href = i.find_all("a", href=True)
-
-                for product_no in range(len(href)):
-                    t = href[product_no]["href"]
-                    product_urls.append(t)
+            try:
+                response = requests.get(
+                    search_url,
+                    headers=self.http_headers,
+                    timeout=30,
+                )
+                response.raise_for_status()
+                product_urls = self._extract_product_urls_from_html(response.text)
+            except Exception:
+                product_urls = []
 
             if not product_urls:
-                regex_matches = re.findall(
-                    r"https://www\.myntra\.com/[^\"']+/buy",
-                    myntra_text,
-                )
-                for match in regex_matches:
-                    product_urls.append(match.replace("https://www.myntra.com/", ""))
-
-            # Preserve order while removing duplicates.
-            product_urls = list(dict.fromkeys(product_urls))
+                # Fall back to Selenium when the HTTP response does not expose enough data.
+                self.driver.get(search_url)
+                product_urls = self._extract_product_urls_from_html(self.driver.page_source)
 
             return product_urls
 

@@ -1,13 +1,16 @@
-from flask import request
-from selenium import webdriver 
-from selenium.webdriver.common.by import By 
-from src.exception import CustomException
-from bs4 import BeautifulSoup as bs
-import pandas as pd
-import os, sys
+import os
+import shutil
+import sys
 import time
-from selenium.webdriver.chrome.options import Options 
 from urllib.parse import quote
+
+import pandas as pd
+from bs4 import BeautifulSoup as bs
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+
+from src.exception import CustomException
 
 
 class ScrapeReviews:
@@ -15,12 +18,38 @@ class ScrapeReviews:
                  product_name:str,
                  no_of_products:int):
         options = Options()
-        # options.add_argument("--no-sandbox")
-        # options.add_argument("--disable-dev-shm-usage")
-        # options.add_argument('--headless')
-        
+        headless_browser = os.getenv("HEADLESS_BROWSER", "true").lower() not in {
+            "0",
+            "false",
+            "no",
+        }
+
+        if headless_browser:
+            options.add_argument("--headless=new")
+
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--window-size=1920,1080")
+
+        chrome_binary = (
+            os.getenv("GOOGLE_CHROME_BIN")
+            or os.getenv("CHROME_BIN")
+            or shutil.which("google-chrome")
+            or shutil.which("chromium")
+            or shutil.which("chromium-browser")
+        )
+        if chrome_binary:
+            options.binary_location = chrome_binary
+
+        chromedriver_path = os.getenv("CHROMEDRIVER_PATH") or shutil.which("chromedriver")
+        service = Service(chromedriver_path) if chromedriver_path else None
+
         # Start a new Chrome browser session
-        self.driver = webdriver.Chrome(options=options)
+        if service is not None:
+            self.driver = webdriver.Chrome(service=service, options=options)
+        else:
+            self.driver = webdriver.Chrome(options=options)
 
         self.product_name = product_name
         self.no_of_products = no_of_products

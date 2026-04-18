@@ -4,6 +4,8 @@ A Streamlit-based review intelligence tool for exploring product feedback from M
 
 This project searches Myntra products, opens the review pages through Selenium, collects user comments, stores the results in MongoDB when available, and presents them in a simple analysis dashboard. The goal is practical: get review data quickly, compare products side by side, and surface the positive and negative signals without manually opening dozens of product pages.
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/reminder1111/Myntra-review-scrapping-project)
+
 ## What this project does
 
 - Search a product keyword from the Streamlit interface
@@ -98,6 +100,35 @@ Once the server starts, open the local URL shown in the terminal, usually:
 
 ```text
 http://localhost:8501
+```
+
+## Deploy on Render
+
+This repository is configured for Render using a Docker-based web service so Selenium can run with a headless browser in production.
+
+### One-click deploy
+
+Use the button near the top of this README, or open:
+
+[Deploy to Render](https://render.com/deploy?repo=https://github.com/reminder1111/Myntra-review-scrapping-project)
+
+### Why Docker is used here
+
+The app depends on Selenium and a Chrome-compatible browser. Render's docs note that native runtimes only include a fixed set of tools, and Docker is the right choice when your service needs OS-level packages that are not included by default.
+
+### Render service notes
+
+- Runtime: `Docker`
+- Health check path: `/`
+- Public URL: Render will assign your service a unique `onrender.com` subdomain after deployment
+- Optional env var: `MONGO_DB_URL` if you want to store reviews in your own MongoDB instance
+
+### Live deployment link
+
+Add your final Render service URL here after the first successful deploy:
+
+```text
+https://your-service-name.onrender.com
 ```
 
 ## MongoDB configuration
